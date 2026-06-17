@@ -1,0 +1,2632 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HomeStock AI — Home Operating System</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary: #081028;
+    --white: #FFFFFF;
+    --glass: rgba(255,255,255,0.07);
+    --glass-mid: rgba(255,255,255,0.12);
+    --glass-strong: rgba(255,255,255,0.18);
+    --border: rgba(255,255,255,0.13);
+    --border-strong: rgba(255,255,255,0.22);
+    --glow: rgba(8,16,40,0.15);
+    --accent-blue: rgba(100,160,255,0.6);
+    --accent-cyan: rgba(80,220,200,0.5);
+    --text-primary: rgba(255,255,255,0.95);
+    --text-secondary: rgba(255,255,255,0.55);
+    --text-muted: rgba(255,255,255,0.32);
+    --success: rgba(80,220,150,0.85);
+    --warning: rgba(255,180,60,0.85);
+    --danger: rgba(255,90,90,0.85);
+    --radius-xl: 28px;
+    --radius-2xl: 36px;
+    --radius-3xl: 48px;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-ui: 'Inter', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  /* PERF: GPU hints untuk elemen animasi */
+  .ai-orb, .orb-liquid, .assistant-orb, .ambient-orb {
+    will-change: transform;
+  }
+  .orb-ring-outer, .orb-ring-mid { will-change: opacity, transform; }
+
+  /* PERF: Respek preferensi pengguna */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.1ms !important; }
+  }
+
+  body {
+    background: #060e22;
+    min-height: 100vh;
+    font-family: var(--font-ui);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* AMBIENT BACKGROUND */
+  .ambient-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .ambient-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(40px); /* reduced from 80px */
+    opacity: 0.15;
+    animation: ambientFloat 16s ease-in-out infinite; /* slower = less CPU */
+    will-change: transform;
+  }
+  .ambient-orb.o1 {
+    width: 360px; height: 360px; /* reduced from 600px */
+    background: rgba(60,120,255,0.5);
+    top: -100px; left: -80px;
+    animation-delay: 0s;
+  }
+  .ambient-orb.o2 {
+    width: 300px; height: 300px; /* reduced from 500px */
+    background: rgba(80,200,200,0.4);
+    bottom: -80px; right: -80px;
+    animation-delay: -6s;
+    opacity: 0.1;
+  }
+  .ambient-orb.o3 { display: none; } /* remove third orb entirely */
+  @keyframes ambientFloat {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); } /* simplified, no scale */
+  }
+
+  /* MAIN LAYOUT */
+  .os-shell {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* TOP STATUS BAR */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 28px 0;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .status-bar .time { font-family: var(--font-display); font-size: 13px; color: var(--text-secondary); }
+  .status-indicators { display: flex; gap: 8px; align-items: center; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px rgba(80,220,150,0.8); }
+
+  /* MAIN CONTENT */
+  .main-content {
+    flex: 1;
+    padding: 0 20px 120px;
+    max-width: 480px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* ===== HOME SCREEN ===== */
+  .screen { display: none; contain: layout style; } /* CSS containment */
+  .screen.active { display: block; }
+
+  /* AI ORB HERO */
+  .orb-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 0 24px;
+  }
+
+  .ai-orb-container {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin-bottom: 24px;
+  }
+
+  .orb-ring-outer {
+    position: absolute;
+    inset: -20px;
+    border-radius: 50%;
+    border: 1px solid rgba(100,160,255,0.15);
+    animation: orbRingPulse 4s ease-in-out infinite;
+  }
+  .orb-ring-mid {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 1px solid rgba(100,160,255,0.25);
+    animation: orbRingPulse 4s ease-in-out infinite 0.5s;
+  }
+
+  @keyframes orbRingPulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.04); }
+  }
+
+  .ai-orb {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    position: relative;
+    animation: orbFloat 6s ease-in-out infinite; /* removed orbBreath - filter animation sangat berat */
+    cursor: pointer;
+    will-change: transform;
+  }
+  .orb-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 30% 25%, rgba(120,180,255,0.8) 0%, rgba(60,100,220,0.6) 35%, rgba(8,16,80,0.9) 70%, rgba(4,8,30,1) 100%);
+    border: 1px solid rgba(140,180,255,0.35);
+    box-shadow:
+      0 0 30px rgba(80,130,255,0.35),
+      inset 0 2px 6px rgba(255,255,255,0.15); /* simplified shadows */
+    position: relative;
+    overflow: hidden;
+  }
+  .orb-liquid {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 60%, rgba(100,200,255,0.25) 80%, transparent 100%);
+    animation: orbLiquid 5s linear infinite; /* slowed down */
+    will-change: transform;
+  }
+  .orb-highlight {
+    position: absolute;
+    top: 14px; left: 22px;
+    width: 32px; height: 18px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    filter: blur(3px); /* reduced blur */
+  }
+  .orb-glow-dot {
+    position: absolute;
+    bottom: 26px; right: 22px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(80,220,200,0.9);
+    animation: orbDotPulse 2.5s ease-in-out infinite; /* slowed */
+    will-change: opacity, transform;
+  }
+
+  @keyframes orbFloat {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); } /* reduced from -10px */
+  }
+  @keyframes orbLiquid {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes orbDotPulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.2); } /* reduced scale */
+  }
+
+  .orb-greeting { text-align: center; }
+  .orb-greeting .hello {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+  .orb-greeting .status-msg {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    font-weight: 400;
+  }
+  .health-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 8px 18px;
+    font-size: 13px;
+    /* backdrop-filter removed */
+  }
+  .health-score {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--success);
+    text-shadow: 0 0 12px rgba(80,220,150,0.6);
+  }
+  .health-label { color: var(--text-secondary); font-size: 12px; }
+
+  /* AI STATUS CHIPS */
+  .ai-status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 20px 0;
+  }
+  .ai-chip {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 12px 14px;
+    /* backdrop-filter removed */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    animation: chipFadeIn 0.5s ease both;
+  }
+  .ai-chip:nth-child(2) { animation-delay: 0.1s; }
+  .ai-chip:nth-child(3) { animation-delay: 0.2s; }
+  .ai-chip:nth-child(4) { animation-delay: 0.3s; }
+  @keyframes chipFadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .chip-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 6px rgba(80,220,150,0.8);
+    flex-shrink: 0;
+  }
+  .chip-label-wrap { line-height: 1.3; }
+  .chip-title { font-weight: 500; color: var(--text-primary); font-size: 11px; }
+  .chip-sub { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+
+  /* SECTION HEADER */
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 28px 0 14px;
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .section-action {
+    font-size: 12px;
+    color: rgba(100,160,255,0.8);
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  /* SMART WIDGETS */
+  .widgets-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .widget {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 18px;
+    /* backdrop-filter removed */
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease; /* specific props instead of 'all' */
+    position: relative;
+    overflow: hidden;
+  }
+  .widget::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  }
+  .widget:active {
+    transform: scale(0.96);
+    background: var(--glass-mid);
+  }
+  .widget-wide { grid-column: 1 / -1; }
+  .widget-icon {
+    font-size: 22px;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .widget-name {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .widget-val {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .widget-num {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    margin: 8px 0 4px;
+  }
+  .widget-num.blue { color: rgba(120,180,255,1); text-shadow: 0 0 20px rgba(80,140,255,0.5); }
+  .widget-num.green { color: rgba(80,220,150,1); text-shadow: 0 0 20px rgba(80,220,150,0.5); }
+  .widget-num.orange { color: rgba(255,180,60,1); text-shadow: 0 0 20px rgba(255,180,60,0.5); }
+  .widget-num.red { color: rgba(255,100,100,1); text-shadow: 0 0 20px rgba(255,100,100,0.5); }
+
+  /* INVENTORY HEALTH 3D RING */
+  .health-widget {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .ring-container {
+    position: relative;
+    width: 70px;
+    height: 70px;
+    flex-shrink: 0;
+  }
+  .ring-svg { transform: rotate(-90deg); }
+  .ring-track { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 6; }
+  .ring-fill {
+    fill: none;
+    stroke: url(#ringGrad);
+    stroke-width: 6;
+    stroke-linecap: round;
+    stroke-dasharray: 188.5;
+    stroke-dashoffset: 15;
+    /* filter removed from animated SVG element */
+    animation: ringFill 1.2s ease-out both 0.3s;
+  }
+  @keyframes ringFill {
+    from { stroke-dashoffset: 188.5; }
+    to { stroke-dashoffset: 15; }
+  }
+  .ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .ring-score {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+    color: rgba(80,220,150,1);
+    line-height: 1;
+  }
+  .ring-unit { font-size: 9px; color: var(--text-muted); }
+  .health-info .health-title {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .health-info .health-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+  .health-excellent {
+    display: inline-block;
+    background: rgba(80,220,150,0.12);
+    border: 1px solid rgba(80,220,150,0.3);
+    color: rgba(80,220,150,1);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 100px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* AI INSIGHTS */
+  .insights-list { display: flex; flex-direction: column; gap: 8px; }
+  .insight-card {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 16px;
+    /* backdrop-filter removed */
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  @keyframes insightSlide {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .insight-icon {
+    width: 36px; height: 36px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .insight-icon.warn { background: rgba(255,180,60,0.12); border: 1px solid rgba(255,180,60,0.25); }
+  .insight-icon.info { background: rgba(100,160,255,0.12); border: 1px solid rgba(100,160,255,0.25); }
+  .insight-icon.save { background: rgba(80,220,150,0.12); border: 1px solid rgba(80,220,150,0.25); }
+  .insight-text { flex: 1; }
+  .insight-msg { font-size: 13px; line-height: 1.5; color: var(--text-primary); font-weight: 500; }
+  .insight-time { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+  /* ===== INVENTORY SCREEN ===== */
+  .search-bar {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    /* backdrop-filter removed */
+    margin: 20px 0 16px;
+  }
+  .search-bar input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    flex: 1;
+  }
+  .search-bar input::placeholder { color: var(--text-muted); }
+  .search-icon { color: var(--text-muted); font-size: 16px; }
+
+  .filter-chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin-bottom: 16px;
+    scrollbar-width: none;
+  }
+  .filter-chip {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 7px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    color: var(--text-secondary);
+  }
+  .filter-chip.active {
+    background: rgba(100,160,255,0.2);
+    border-color: rgba(100,160,255,0.5);
+    color: rgba(140,190,255,1);
+  }
+
+  .product-list { display: flex; flex-direction: column; gap: 10px; }
+  .product-card {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 16px;
+    /* backdrop-filter removed */
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .product-card:active { transform: scale(0.98); background: var(--glass-mid); }
+  .product-emoji {
+    width: 52px; height: 52px;
+    border-radius: 16px;
+    background: var(--glass-mid);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    flex-shrink: 0;
+  }
+  .product-info { flex: 1; }
+  .product-name { font-weight: 600; font-size: 14px; margin-bottom: 3px; }
+  .product-meta { font-size: 12px; color: var(--text-secondary); }
+  .product-right { text-align: right; }
+  .product-qty {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .product-unit { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 4px;
+  }
+  .badge.healthy { background: rgba(80,220,150,0.12); color: rgba(80,220,150,1); border: 1px solid rgba(80,220,150,0.3); }
+  .badge.low { background: rgba(255,180,60,0.12); color: rgba(255,180,60,1); border: 1px solid rgba(255,180,60,0.3); }
+  .badge.critical { background: rgba(255,90,90,0.12); color: rgba(255,100,100,1); border: 1px solid rgba(255,90,90,0.3); }
+
+  /* ===== SCAN SCREEN ===== */
+  .scan-viewport {
+    position: relative;
+    background: rgba(0,0,0,0.6);
+    border-radius: var(--radius-2xl);
+    height: 340px;
+    margin: 20px 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .scan-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(100,160,255,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(100,160,255,0.06) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+  .scan-corners {
+    position: absolute;
+    inset: 30px;
+  }
+  .scan-corner {
+    position: absolute;
+    width: 28px; height: 28px;
+    border-color: rgba(100,200,255,0.9);
+    border-style: solid;
+  }
+  .sc-tl { top: 0; left: 0; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; }
+  .sc-tr { top: 0; right: 0; border-width: 2px 2px 0 0; border-radius: 0 4px 0 0; }
+  .sc-bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; border-radius: 0 0 0 4px; }
+  .sc-br { bottom: 0; right: 0; border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; }
+  .scan-line {
+    position: absolute;
+    left: 30px; right: 30px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(100,200,255,0.9), transparent);
+    box-shadow: 0 0 10px rgba(100,200,255,0.6);
+    animation: scanMove 2.5s ease-in-out infinite;
+    top: 30px;
+  }
+  @keyframes scanMove {
+    0% { top: 30px; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: calc(100% - 30px); opacity: 0; }
+  }
+  .scan-label {
+    position: absolute;
+    bottom: 24px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 13px;
+    color: rgba(100,200,255,0.9);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .scan-mode-label {
+    position: absolute;
+    top: 18px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .scan-result {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xl);
+    padding: 20px;
+    /* backdrop-filter removed */
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    animation: walletSlide 0.4s ease;
+  }
+  @keyframes walletSlide {
+    from { transform: translateY(80px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .scan-result-icon { font-size: 40px; }
+  .scan-result-info .result-name { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .scan-result-info .result-detail { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+
+  /* ===== SCAN RESULT PRODUCT PHOTO ===== */
+  .scan-result-photo {
+    width: 64px; height: 64px;
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.18), rgba(100,160,255,0.08));
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.25);
+    position: relative;
+    flex-shrink: 0;
+    overflow: hidden;
+    animation: walletSlide 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .scan-result-photo::after {
+    content: '';
+    position: absolute;
+    top: -20%; left: -30%;
+    width: 55%; height: 140%;
+    background: linear-gradient(120deg, rgba(255,255,255,0.25), transparent);
+    transform: rotate(20deg);
+  }
+  .scan-result-photo .photo-badge {
+    position: absolute;
+    bottom: -3px; right: -3px;
+    background: rgba(8,16,40,0.92);
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+  }
+
+  /* ===== EXPIRED INFO NOTE ===== */
+  .scan-exp-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    animation: walletSlide 0.35s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .scan-exp-note.healthy { background: rgba(80,220,150,0.1); color: rgba(120,235,180,1); border: 1px solid rgba(80,220,150,0.28); }
+  .scan-exp-note.low { background: rgba(255,180,60,0.1); color: rgba(255,195,100,1); border: 1px solid rgba(255,180,60,0.28); }
+  .scan-exp-note.critical { background: rgba(255,90,90,0.1); color: rgba(255,140,140,1); border: 1px solid rgba(255,90,90,0.28); }
+  .scan-add-btn {
+    background: linear-gradient(135deg, rgba(100,160,255,0.3), rgba(80,120,220,0.3));
+    border: 1px solid rgba(100,160,255,0.4);
+    border-radius: 14px;
+    padding: 12px 20px;
+    color: rgba(180,210,255,1);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 12px;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    font-family: var(--font-ui);
+  }
+  .scan-add-btn:active { transform: scale(0.97); }
+
+  /* ===== SHOPPING SCREEN ===== */
+  .shopping-header {
+    background: linear-gradient(135deg, rgba(100,160,255,0.1), rgba(80,80,200,0.05));
+    border: 1px solid rgba(100,160,255,0.2);
+    border-radius: var(--radius-xl);
+    padding: 20px;
+    margin: 20px 0 16px;
+    /* backdrop-filter removed */
+  }
+  .shopping-header .sh-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(100,160,255,0.8);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .shopping-header .sh-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .shopping-header .sh-sub { font-size: 13px; color: var(--text-secondary); }
+  .total-estimate {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .total-label { font-size: 12px; color: var(--text-muted); }
+  .total-val { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: rgba(80,220,150,1); }
+
+  .shop-item {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 16px;
+    /* backdrop-filter removed */
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .shop-item-emoji { font-size: 28px; width: 44px; text-align: center; flex-shrink: 0; }
+  .shop-item-info { flex: 1; }
+  .shop-item-name { font-weight: 600; font-size: 14px; margin-bottom: 3px; }
+  .shop-item-reason { font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
+  .shop-item-qty {
+    background: var(--glass-mid);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 14px;
+    text-align: center;
+  }
+  .shop-qty-num { font-family: var(--font-display); font-weight: 700; font-size: 16px; }
+  .shop-qty-unit { font-size: 10px; color: var(--text-muted); }
+
+  /* ===== ASSISTANT SCREEN ===== */
+  .assistant-orb-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 0 20px;
+  }
+  .assistant-orb {
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    position: relative;
+    margin-bottom: 16px;
+    animation: orbFloat 5s ease-in-out infinite;
+  }
+  .assistant-orb .orb-inner {
+    background: radial-gradient(ellipse at 30% 25%, rgba(160,100,255,0.9) 0%, rgba(100,50,220,0.7) 35%, rgba(30,10,80,0.95) 80%);
+    box-shadow: 0 0 24px rgba(140,80,255,0.4); /* simplified */
+  }
+  .assistant-title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .assistant-sub { font-size: 13px; color: var(--text-secondary); text-align: center; margin-bottom: 20px; }
+
+  .qa-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .qa-chip {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 9px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    color: var(--text-secondary);
+  }
+  .qa-chip:active { background: var(--glass-mid); color: var(--text-primary); }
+
+  .chat-area {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 16px;
+    /* backdrop-filter removed */
+    min-height: 200px;
+    margin-bottom: 12px;
+  }
+  .ai-msg {
+    background: rgba(100,80,255,0.1);
+    border: 1px solid rgba(120,100,255,0.2);
+    border-radius: 16px 16px 16px 4px;
+    padding: 12px 16px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    max-width: 90%;
+    margin-bottom: 10px;
+    animation: msgFade 0.3s ease;
+  }
+  @keyframes msgFade {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .user-msg {
+    background: rgba(100,160,255,0.12);
+    border: 1px solid rgba(100,160,255,0.2);
+    border-radius: 16px 16px 4px 16px;
+    padding: 12px 16px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    max-width: 90%;
+    margin-left: auto;
+    margin-bottom: 10px;
+  }
+
+  .chat-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 10px 10px 10px 18px;
+    /* backdrop-filter removed */
+  }
+  .chat-input-row input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+  }
+  .chat-input-row input::placeholder { color: var(--text-muted); }
+  .send-btn {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(100,80,255,0.8), rgba(60,120,220,0.8));
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    flex-shrink: 0;
+  }
+  .send-btn:active { transform: scale(0.9); }
+
+  /* ===== BOTTOM DOCK ===== */
+  .bottom-dock {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    width: calc(100% - 40px);
+    max-width: 420px;
+  }
+  .dock-inner {
+    background: rgba(8,16,40,0.85); /* more opaque = less blur needed */
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 10px 16px;
+    backdrop-filter: blur(20px); /* reduced from 40px saturate(180%) */
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  .dock-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 20px;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    min-width: 52px;
+  }
+  .dock-item:active { transform: scale(0.88); }
+  .dock-icon { font-size: 20px; line-height: 1; }
+  .dock-label {
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .dock-item.active .dock-label { color: rgba(140,190,255,0.9); }
+  .dock-item.active .dock-icon { filter: drop-shadow(0 0 4px rgba(100,160,255,0.7)); }
+
+  .dock-add-product {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(100,160,255,0.85), rgba(60,100,220,0.95));
+    border: 2px solid rgba(140,180,255,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 0 16px rgba(100,160,255,0.35); /* static, no animation */
+    transition: transform 0.15s ease;
+    flex-shrink: 0;
+  }
+  .dock-add-product:active { transform: scale(0.92); }
+
+  /* EMPTY STATE */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+  }
+  .empty-home-icon {
+    font-size: 70px;
+    margin-bottom: 20px;
+    animation: orbFloat 5s ease-in-out infinite;
+    /* filter removed */
+  }
+  .empty-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .empty-msg { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 24px; }
+  .primary-btn {
+    background: linear-gradient(135deg, rgba(100,160,255,0.3), rgba(80,120,220,0.4));
+    border: 1px solid rgba(100,160,255,0.5);
+    border-radius: 100px;
+    padding: 14px 32px;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(180,210,255,1);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  .primary-btn:active { transform: scale(0.97); }
+
+  /* DIVIDER */
+  .divider { height: 1px; background: var(--border); margin: 8px 0; }
+
+  /* FORECAST */
+  .forecast-card {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 20px;
+    /* backdrop-filter removed */
+    margin-bottom: 10px;
+  }
+  .forecast-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
+  .forecast-amount {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 700;
+    color: rgba(120,180,255,1);
+    text-shadow: 0 0 20px rgba(80,140,255,0.4);
+    margin-bottom: 6px;
+  }
+  .forecast-note { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+  /* CHART BARS */
+  .mini-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 60px;
+    margin-top: 16px;
+  }
+  .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .chart-bar {
+    width: 100%;
+    border-radius: 6px 6px 0 0;
+    background: linear-gradient(to top, rgba(100,160,255,0.4), rgba(100,160,255,0.8));
+    transition: height 0.3s ease;
+  }
+  .chart-bar.current { background: linear-gradient(to top, rgba(80,220,150,0.5), rgba(80,220,150,0.9)); }
+  .chart-lbl { font-size: 9px; color: var(--text-muted); text-align: center; }
+
+  /* NOTIFICATION DOT */
+  .notif-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(255,80,80,1);
+    box-shadow: 0 0 6px rgba(255,80,80,0.8);
+    position: absolute;
+    top: -2px; right: -2px;
+  }
+  .dock-item { position: relative; }
+
+  /* SCROLL AREA */
+  .scroll-area { overflow-y: auto; padding-bottom: 8px; }
+
+  /* PAGE TITLE */
+  .page-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-top: 24px;
+    margin-bottom: 4px;
+  }
+  .page-subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+
+  /* ADD BUTTON */
+  .add-product-btn {
+    background: linear-gradient(135deg, rgba(100,160,255,0.25), rgba(60,100,220,0.3));
+    border: 1px solid rgba(100,160,255,0.4);
+    border-radius: 100px;
+    padding: 10px 20px;
+    color: rgba(160,200,255,1);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    white-space: nowrap;
+  }
+  .add-product-btn:active { transform: scale(0.95); }
+
+  /* DELETE BUTTON on product card */
+  .delete-btn {
+    background: rgba(255,80,80,0.08);
+    border: 1px solid rgba(255,80,80,0.2);
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+    line-height: 1;
+  }
+  .delete-btn:active { background: rgba(255,80,80,0.2); transform: scale(0.9); }
+
+  /* MODAL OVERLAY */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(4,8,28,0.75);
+    backdrop-filter: blur(6px); /* reduced from 10px */
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .modal-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .modal-sheet {
+    background: rgba(10,18,50,0.98);
+    border: 1px solid var(--border-strong);
+    border-radius: 32px 32px 0 0;
+    width: 100%;
+    max-width: 480px;
+    padding: 0 20px 130px;
+    max-height: 92vh;
+    overflow-y: auto;
+    transform: translateY(40px);
+    transition: transform 0.3s ease; /* simplified from cubic-bezier bounce */
+    /* backdrop-filter removed - bg already opaque */
+  }
+  .modal-overlay.open .modal-sheet {
+    transform: translateY(0);
+  }
+  .modal-drag-bar {
+    width: 40px; height: 4px;
+    border-radius: 100px;
+    background: rgba(255,255,255,0.15);
+    margin: 14px auto 0;
+  }
+  .modal-header { padding-bottom: 4px; }
+  .modal-title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    margin: 16px 0 16px;
+    text-align: center;
+  }
+
+  /* MODAL TABS */
+  .modal-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 4px;
+    margin-bottom: 20px;
+  }
+  .modal-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 11px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .modal-tab.active {
+    background: rgba(100,160,255,0.18);
+    color: rgba(160,200,255,1);
+    border: 1px solid rgba(100,160,255,0.3);
+  }
+
+  /* MODAL SCAN VIEWPORT */
+  .modal-scan-viewport {
+    position: relative;
+    background: rgba(0,0,0,0.5);
+    border-radius: 20px;
+    height: 200px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin-bottom: 10px;
+  }
+  .modal-scan-hint {
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .modal-scan-demo-btn {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(100,160,255,0.2), rgba(80,120,220,0.3));
+    border: 1px solid rgba(100,160,255,0.4);
+    border-radius: 16px;
+    padding: 14px;
+    color: rgba(160,200,255,1);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    margin-bottom: 4px;
+  }
+  .modal-scan-demo-btn:active { transform: scale(0.97); }
+
+  /* MODAL FORM */
+  .modal-field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .modal-label { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; }
+  .modal-input {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 13px 16px;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .modal-input:focus { border-color: rgba(100,160,255,0.5); }
+  .modal-select { appearance: none; cursor: pointer; }
+  .modal-input::placeholder { color: var(--text-muted); }
+  .modal-input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+
+  .modal-save-btn {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(100,160,255,0.35), rgba(60,100,220,0.45));
+    border: 1px solid rgba(100,160,255,0.5);
+    border-radius: 16px;
+    padding: 16px;
+    color: rgba(200,225,255,1);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    box-shadow: 0 4px 20px rgba(80,130,255,0.2);
+  }
+  .modal-save-btn:active { transform: scale(0.97); }
+
+  /* DELETE CONFIRM */
+  .modal-cancel-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+  .modal-delete-confirm-btn {
+    background: rgba(255,60,60,0.2);
+    border: 1px solid rgba(255,80,80,0.4);
+    border-radius: 14px;
+    padding: 14px;
+    color: rgba(255,120,120,1);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+  .modal-delete-confirm-btn:active { background: rgba(255,60,60,0.35); transform: scale(0.97); }
+
+  /* PHOTO UPLOAD AREA */
+  .photo-upload-area {
+    border: 2px dashed rgba(100,160,255,0.35);
+    border-radius: 16px;
+    background: rgba(100,160,255,0.05);
+    padding: 0;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .photo-upload-area:active { border-color: rgba(100,160,255,0.7); background: rgba(100,160,255,0.1); }
+  .photo-upload-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px 16px;
+  }
+  .photo-upload-text { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+  .photo-upload-sub { font-size: 11px; color: var(--text-muted); }
+  .photo-upload-preview {
+    width: 100%;
+    max-height: 180px;
+    object-fit: cover;
+    display: none;
+    border-radius: 14px;
+  }
+  .photo-upload-preview.visible { display: block; }
+  .photo-upload-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .photo-action-btn {
+    background: rgba(100,160,255,0.1);
+    border: 1px solid rgba(100,160,255,0.3);
+    border-radius: 12px;
+    padding: 12px 10px;
+    color: rgba(160,200,255,1);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease;
+    text-align: center;
+  }
+  .photo-action-btn:active { transform: scale(0.97); background: rgba(100,160,255,0.2); }
+  .photo-remove-btn {
+    background: rgba(255,60,60,0.1);
+    border: 1px solid rgba(255,80,80,0.3);
+    border-radius: 10px;
+    padding: 6px 12px;
+    color: rgba(255,140,140,1);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    position: absolute;
+    top: 8px; right: 8px;
+    z-index: 2;
+    display: none;
+  }
+  .photo-remove-btn.visible { display: block; }
+
+  /* CAMERA VIDEO */
+  .camera-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+    z-index: 0;
+    display: none;
+  }
+  .camera-video.active { display: block; }
+  .scan-grid, .scan-corners, .scan-line, .scan-label, .scan-mode-label {
+    z-index: 1;
+    position: absolute;
+  }
+  .cam-btn-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .cam-start-btn {
+    flex: 1;
+    background: linear-gradient(135deg, rgba(80,200,150,0.25), rgba(60,180,120,0.3));
+    border: 1px solid rgba(80,200,150,0.5);
+    border-radius: 16px;
+    padding: 13px;
+    color: rgba(120,240,180,1);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+  .cam-start-btn:active { transform: scale(0.97); }
+  .cam-stop-btn {
+    background: rgba(255,80,80,0.15);
+    border: 1px solid rgba(255,80,80,0.35);
+    border-radius: 16px;
+    padding: 13px 16px;
+    color: rgba(255,140,140,1);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    display: none;
+  }
+  .cam-stop-btn.visible { display: block; }
+  .cam-status-bar {
+    text-align: center;
+    font-size: 11px;
+    color: rgba(100,200,255,0.7);
+    margin-bottom: 6px;
+    min-height: 16px;
+    letter-spacing: 0.04em;
+  }
+
+  /* EDIT MODAL */
+  .edit-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(4,8,28,0.80);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .edit-modal-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .edit-modal-sheet {
+    background: rgba(10,18,50,0.98);
+    border: 1px solid var(--border-strong);
+    border-radius: 32px 32px 0 0;
+    width: 100%;
+    max-width: 480px;
+    padding: 0 20px 140px;
+    max-height: 90vh;
+    overflow-y: auto;
+    transform: translateY(40px);
+    transition: transform 0.3s ease;
+  }
+  .edit-modal-overlay.open .edit-modal-sheet {
+    transform: translateY(0);
+  }
+  .edit-btn {
+    background: rgba(100,160,255,0.1);
+    border: 1px solid rgba(100,160,255,0.25);
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+    line-height: 1;
+    color: rgba(140,190,255,1);
+  }
+  .edit-btn:active { background: rgba(100,160,255,0.22); transform: scale(0.9); }
+  .product-price-tag {
+    font-size: 11px;
+    color: rgba(80,220,150,0.85);
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  /* SHAKE ANIMATION */
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+
+
+  .ai-thinking {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 10px 0;
+  }
+  .think-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: rgba(140,100,255,0.8);
+    animation: thinkBounce 1.2s ease-in-out infinite;
+  }
+  .think-dot:nth-child(2) { animation-delay: 0.15s; }
+  .think-dot:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes thinkBounce {
+    0%, 100% { transform: translateY(0); opacity: 0.4; }
+    50% { transform: translateY(-5px); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient-bg">
+  <div class="ambient-orb o1"></div>
+  <div class="ambient-orb o2"></div>
+  <div class="ambient-orb o3"></div>
+</div>
+
+<div class="os-shell">
+  <div class="status-bar">
+    <span class="time" id="clock">09:41</span>
+    <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:rgba(255,255,255,0.35);letter-spacing:0.05em;">
+      AI AKTIF
+      <div class="status-dot"></div>
+    </div>
+    <div class="status-indicators">
+      <span>▲ 92%</span>
+      <span>⚡</span>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ===== HOME SCREEN ===== -->
+    <div class="screen active" id="screen-home">
+
+      <!-- AI ORB HERO -->
+      <div class="orb-hero">
+        <div class="ai-orb-container">
+          <div class="orb-ring-outer"></div>
+          <div class="orb-ring-mid"></div>
+          <div class="ai-orb" onclick="scrollToAI()">
+            <div class="orb-inner">
+              <div class="orb-liquid"></div>
+              <div class="orb-highlight"></div>
+            </div>
+            <div class="orb-glow-dot"></div>
+          </div>
+        </div>
+        <div class="orb-greeting">
+          <div class="hello">Halo, Ridzky 👋</div>
+          <div class="status-msg" id="home-status-msg">Memuat status rumah…</div>
+          <div class="health-pill">
+            <span class="health-score" id="home-health-score">–</span>
+            <span class="health-label">Home Health Score</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SMART WIDGETS -->
+      <div class="widgets-grid">
+        <div class="widget" onclick="showScreen('inventory');setDock('inventory')">
+          <span class="widget-icon">📦</span>
+          <div class="widget-name">Inventory</div>
+          <div class="widget-num blue" id="home-inv-count">0</div>
+          <div class="widget-val">Total produk tersimpan</div>
+        </div>
+        <div class="widget" onclick="showScreen('inventory');setDock('inventory')">
+          <span class="widget-icon">⏰</span>
+          <div class="widget-name">Berisiko</div>
+          <div class="widget-num red" id="home-exp-widget-num">0</div>
+          <div class="widget-val">Akan expired ≤7 hari</div>
+        </div>
+        <div class="widget widget-wide" onclick="showScreen('shopping');setDock('shopping')">
+          <span class="widget-icon">🛒</span>
+          <div class="widget-name">Perlu Dibeli Minggu Ini</div>
+          <div class="widget-num orange" id="home-shop-count">0</div>
+          <div class="widget-val">Stok rendah / akan expired — lihat Daftar Belanja</div>
+        </div>
+      </div>
+
+      <!-- AI STATUS CHIPS -->
+      <div class="ai-status-grid">
+        <div class="ai-chip">
+          <span class="chip-dot"></span>
+          <div class="chip-label-wrap">
+            <div class="chip-title">AI Monitoring</div>
+            <div class="chip-sub">Aktif · Real-time sync</div>
+          </div>
+        </div>
+        <div class="ai-chip">
+          <span class="chip-dot" id="home-risk-dot"></span>
+          <div class="chip-label-wrap">
+            <div class="chip-title">Status Stok</div>
+            <div class="chip-sub" id="home-exp-chip-sub">0 item berisiko</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-header" style="margin-top:28px">
+        <span class="section-title">✦ Home AI Assistant</span>
+      </div>
+
+      <!-- QA CHIPS -->
+      <div class="qa-chips" id="home-qa-chips">
+        <div class="qa-chip" onclick="askHomeAI(this)">Barang hampir habis?</div>
+        <div class="qa-chip" onclick="askHomeAI(this)">Yang akan expired?</div>
+        <div class="qa-chip" onclick="askHomeAI(this)">Saran belanja?</div>
+        <div class="qa-chip" onclick="askHomeAI(this)">Ringkasan stok?</div>
+      </div>
+
+      <!-- CHAT AREA -->
+      <div class="chat-area" id="home-chat-area" style="min-height:120px;max-height:340px;overflow-y:auto">
+        <div class="ai-msg" id="home-ai-welcome">
+          Halo Ridzky! Saya memantau <strong id="home-ai-count">6 produk</strong> di inventaris Anda. Ada yang ingin Anda tanyakan? 🏠
+        </div>
+      </div>
+
+      <div class="chat-input-row" style="margin-top:10px">
+        <input type="text" id="home-chat-input" placeholder="Tanya AI rumah Anda…" onkeydown="if(event.key==='Enter')sendHomeChat()">
+        <button class="send-btn" onclick="sendHomeChat()">➤</button>
+      </div>
+
+      <div style="height:30px"></div>
+    </div>
+    <div class="screen" id="screen-inventory">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:24px;margin-bottom:4px">
+        <div>
+          <div class="page-title" style="margin-top:0">Inventory</div>
+          <div class="page-subtitle" id="inv-subtitle">Diperbarui barusan</div>
+        </div>
+        <button class="add-product-btn" onclick="openAddModal()">＋ Tambah</button>
+      </div>
+
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="inv-search" placeholder="Cari produk, kategori…" oninput="renderInventory()">
+      </div>
+
+      <div class="filter-chips" id="filter-chips-inv">
+        <div class="filter-chip active" data-cat="Semua" onclick="setFilter(this)">Semua</div>
+        <div class="filter-chip" data-cat="Dapur" onclick="setFilter(this)">Dapur</div>
+        <div class="filter-chip" data-cat="Minuman" onclick="setFilter(this)">Minuman</div>
+        <div class="filter-chip" data-cat="Kebersihan" onclick="setFilter(this)">Kebersihan</div>
+        <div class="filter-chip" data-cat="Kesehatan" onclick="setFilter(this)">Kesehatan</div>
+        <div class="filter-chip" data-cat="Lainnya" onclick="setFilter(this)">Lainnya</div>
+      </div>
+
+      <div class="product-list" id="product-list-render"></div>
+      <div style="height:30px"></div>
+    </div>
+
+    <!-- ===== ADD PRODUCT MODAL ===== -->
+    <div class="modal-overlay" id="add-modal" onclick="closeAddModal(event)">
+      <div class="modal-sheet" id="modal-sheet">
+        <div class="modal-header">
+          <div class="modal-drag-bar"></div>
+          <div class="modal-title">Tambah Produk</div>
+        </div>
+
+        <!-- STEP 1: SCAN BARCODE (wajib sebelum isi detail) -->
+        <div id="add-step-scan">
+          <div class="page-subtitle" style="margin:-2px 0 4px;text-align:center">Scan barcode produk untuk mulai</div>
+          <div class="modal-scan-viewport" id="modal-scan-viewport">
+            <video class="camera-video" id="modal-camera-video" autoplay playsinline muted></video>
+            <div class="scan-grid"></div>
+            <div class="scan-mode-label" id="modal-scan-mode-label">Tekan tombol untuk mulai kamera</div>
+            <div class="scan-corners">
+              <div class="scan-corner sc-tl"></div>
+              <div class="scan-corner sc-tr"></div>
+              <div class="scan-corner sc-bl"></div>
+              <div class="scan-corner sc-br"></div>
+            </div>
+            <div class="scan-line" id="modal-scan-line" style="display:none"></div>
+            <div class="scan-label" id="modal-scan-label">Arahkan ke barcode produk</div>
+          </div>
+
+          <div class="cam-btn-row" style="margin-top:8px">
+            <button class="cam-start-btn" id="modal-cam-start-btn" onclick="startModalCamera()">Mulai Kamera</button>
+            <button class="cam-stop-btn" id="modal-cam-stop-btn" onclick="stopModalCamera()" style="margin-bottom:0">Berhenti</button>
+          </div>
+          <div class="cam-status-bar" id="modal-cam-status"></div>
+
+          <div style="text-align:center;margin:18px 0 8px;font-size:12px;color:var(--text-muted)">— atau masukkan barcode manual —</div>
+          <div class="modal-field-group">
+            <input class="modal-input" type="text" id="manual-barcode-input" placeholder="Ketik nomor barcode" inputmode="numeric">
+          </div>
+          <button class="modal-save-btn" onclick="continueWithManualBarcode()" style="margin-top:4px">Lanjutkan</button>
+        </div>
+
+        <!-- STEP 2: DETAIL PRODUK (muncul setelah barcode terisi) -->
+        <div id="add-step-form" style="display:none">
+          <div class="modal-field-group">
+            <label class="modal-label">Barcode Produk</label>
+            <input class="modal-input" type="text" id="np-barcode" placeholder="Contoh: 8992388008090" inputmode="numeric">
+          </div>
+          <div class="modal-field-group">
+            <label class="modal-label">Nama Produk</label>
+            <input class="modal-input" type="text" id="np-name" placeholder="Contoh: Minyak Goreng Tropical">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="modal-field-group">
+              <label class="modal-label">Jumlah Produk</label>
+              <input class="modal-input" type="number" id="np-qty" value="1" min="1">
+            </div>
+            <div class="modal-field-group">
+              <label class="modal-label">Harga Produk (Rp)</label>
+              <input class="modal-input" type="number" id="np-price" placeholder="Contoh: 15000" min="0">
+            </div>
+          </div>
+          <div class="modal-field-group">
+            <label class="modal-label">Berat Bersih Produk</label>
+            <input class="modal-input" type="text" id="np-weight" placeholder="Contoh: 250 ml / 1 kg">
+          </div>
+          <div class="modal-field-group">
+            <label class="modal-label">Tanggal Expired Produk</label>
+            <input class="modal-input" type="date" id="np-exp">
+          </div>
+          <button class="modal-cancel-btn" onclick="backToScanStep()" style="width:100%;margin-bottom:10px">↺ Scan Ulang</button>
+          <button class="modal-save-btn" onclick="saveNewProduct()">Simpan ke Inventory</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- EDIT PRODUCT MODAL -->
+    <div class="edit-modal-overlay" id="edit-modal" onclick="closeEditModal(event)">
+      <div class="edit-modal-sheet">
+        <div class="modal-drag-bar"></div>
+        <div class="modal-title" style="margin:16px 0 16px;text-align:center">✏️ Edit Produk</div>
+        <div class="modal-field-group">
+          <label class="modal-label">Nama Produk</label>
+          <input class="modal-input" type="text" id="edit-name" placeholder="Nama produk">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="modal-field-group">
+            <label class="modal-label">Kategori</label>
+            <select class="modal-input modal-select" id="edit-cat">
+              <option value="Dapur">Dapur</option>
+              <option value="Minuman">Minuman</option>
+              <option value="Kebersihan">Kebersihan</option>
+              <option value="Kesehatan">Kesehatan</option>
+              <option value="Lainnya">Lainnya</option>
+            </select>
+          </div>
+          <div class="modal-field-group">
+            <label class="modal-label">Emoji / Ikon</label>
+            <input class="modal-input" type="text" id="edit-emoji" placeholder="📦" maxlength="2" style="font-size:20px;text-align:center">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="modal-field-group">
+            <label class="modal-label">Jumlah</label>
+            <input class="modal-input" type="number" id="edit-qty" min="0">
+          </div>
+          <div class="modal-field-group">
+            <label class="modal-label">Satuan</label>
+            <input class="modal-input" type="text" id="edit-unit" placeholder="pcs / kg / botol">
+          </div>
+        </div>
+        <div class="modal-field-group">
+          <label class="modal-label">Tanggal Expired</label>
+          <input class="modal-input" type="date" id="edit-exp">
+        </div>
+        <div class="modal-field-group">
+          <label class="modal-label">Harga Beli Awal (Rp)</label>
+          <input class="modal-input" type="number" id="edit-price" placeholder="Contoh: 15000" min="0">
+        </div>
+        <button class="modal-save-btn" onclick="saveEditProduct()" style="margin-top:16px">💾 Simpan Perubahan</button>
+        <button class="modal-cancel-btn" onclick="closeEditModal()" style="width:100%;margin-top:10px">Batal</button>
+      </div>
+    </div>
+
+    <!-- DELETE CONFIRM SHEET -->
+    <div class="modal-overlay" id="delete-modal" onclick="closeDeleteModal(event)">
+      <div class="modal-sheet" id="delete-sheet" style="padding-bottom:130px">
+        <div class="modal-drag-bar"></div>
+        <div style="text-align:center;padding:16px 0 24px">
+          <div style="font-size:52px;margin-bottom:14px" id="del-emoji">🗑️</div>
+          <div class="modal-title" style="margin-bottom:8px">Hapus Produk?</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5" id="del-product-name">Nama produk</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <button class="modal-cancel-btn" onclick="closeDeleteModal()">Batal</button>
+          <button class="modal-delete-confirm-btn" id="del-confirm-btn">Hapus</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SHOPPING SCREEN ===== -->
+    <div class="screen" id="screen-shopping">
+      <div class="shopping-header">
+        <div class="sh-label">✦ AI Shopping Plan</div>
+        <div class="sh-title">Daftar Belanja Minggu Ini</div>
+        <div class="sh-sub">Disusun otomatis berdasarkan stok inventory Anda.</div>
+        <div class="total-estimate">
+          <span class="total-label">Estimasi Total</span>
+          <span class="total-val" id="shop-total-val">Rp 0</span>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <span class="section-title" id="shop-section-title">Segera Beli</span>
+      </div>
+
+      <!-- Daftar belanja dirender otomatis dari inventory -->
+      <div id="shopping-list-render"></div>
+
+      <div class="section-header" style="margin-top:20px">
+        <span class="section-title">AI Cost Forecast</span>
+      </div>
+
+      <div class="forecast-card">
+        <div class="forecast-label">Prediksi Pengeluaran Bulan Depan</div>
+        <div class="forecast-amount" id="forecast-amount">Rp 1.296.000</div>
+        <div class="forecast-note" id="forecast-note">⬆ Naik sekitar 8% dari bulan ini. Kategori dapur menjadi penyumbang terbesar (42%).</div>
+        <div class="mini-chart">
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height:32px"></div>
+            <div class="chart-lbl">Mar</div>
+          </div>
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height:40px"></div>
+            <div class="chart-lbl">Apr</div>
+          </div>
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height:36px"></div>
+            <div class="chart-lbl">Mei</div>
+          </div>
+          <div class="chart-bar-wrap">
+            <div class="chart-bar current" style="height:44px"></div>
+            <div class="chart-lbl">Jun</div>
+          </div>
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height:48px;opacity:0.5;border:1px dashed rgba(100,160,255,0.4);background:transparent"></div>
+            <div class="chart-lbl" style="color:rgba(100,160,255,0.6)">Jul*</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:30px"></div>
+    </div>
+
+  </div><!-- end main-content -->
+</div><!-- end os-shell -->
+
+<!-- BOTTOM DOCK -->
+<div class="bottom-dock">
+  <div class="dock-inner">
+    <div class="dock-item active" id="dock-home" onclick="showScreen('home');setDock('home')">
+      <span class="dock-icon">🏠</span>
+      <span class="dock-label">Home</span>
+    </div>
+    <div class="dock-item" id="dock-inventory" onclick="showScreen('inventory');setDock('inventory')">
+      <span class="dock-icon">📦</span>
+      <span class="dock-label">Inventory</span>
+      <div class="notif-dot"></div>
+    </div>
+    <div class="dock-add-product" onclick="showScreen('inventory');setDock('inventory');openAddModal()">
+      <span>＋</span>
+    </div>
+    <div class="dock-item" id="dock-shopping" onclick="showScreen('shopping');setDock('shopping')">
+      <span class="dock-icon">🛒</span>
+      <span class="dock-label">Belanja</span>
+    </div>
+    <div class="dock-item" id="dock-home2" onclick="showScreen('home');setDock('home');scrollToAI()">
+      <span class="dock-icon">✦</span>
+      <span class="dock-label">AI</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== CLOCK =====
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const el = document.getElementById('clock');
+  if (el) el.textContent = h + ':' + m;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ===== NAVIGATION =====
+function _showScreenBase(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const t = document.getElementById('screen-' + name);
+  if (t) { t.classList.add('active'); window.scrollTo(0,0); }
+  if (name === 'inventory') renderInventory();
+  syncAll(); // selalu sync semua tampilan saat ganti screen
+}
+
+// ===== SYNC TERPUSAT — panggil ini setiap data products berubah =====
+function syncAll() {
+  renderShopping();
+  updateHomeStats();
+  updateHomeAIWelcome();
+}
+function setDock(name) {
+  document.querySelectorAll('.dock-item').forEach(d => d.classList.remove('active'));
+  const key = name === 'home2' ? 'home' : name;
+  const t = document.getElementById('dock-' + key);
+  if (t) t.classList.add('active');
+  // Also highlight AI button when on home
+  if (name === 'home2') {
+    const ai = document.getElementById('dock-home2');
+    if (ai) { document.querySelectorAll('.dock-item').forEach(d=>d.classList.remove('active')); ai.classList.add('active'); }
+  }
+}
+
+// ===== INVENTORY DATA (default/demo — hanya dipakai saat pertama kali dibuka atau setelah reset) =====
+const DEFAULT_PRODUCTS = [
+  { id:1, emoji:'🥛', name:'Susu UHT Full Cream', cat:'Minuman', qty:2, unit:'kotak', exp:'2026-06-24', price:8500 },
+  { id:2, emoji:'🍚', name:'Beras Premium',        cat:'Dapur',   qty:8, unit:'kg',    exp:'2026-12-01', price:65000 },
+  { id:3, emoji:'🧴', name:'Sabun Mandi Cair',     cat:'Kebersihan', qty:3, unit:'botol', exp:'2027-03-10', price:22000 },
+  { id:4, emoji:'🥚', name:'Telur Ayam',           cat:'Dapur',   qty:3, unit:'butir', exp:'2026-06-18', price:3000 },
+  { id:5, emoji:'🧈', name:'Margarin Serbaguna',   cat:'Dapur',   qty:2, unit:'pcs',   exp:'2026-09-20', price:12000 },
+  { id:6, emoji:'🫙', name:'Minyak Goreng 2L',     cat:'Dapur',   qty:1, unit:'liter', exp:'2027-01-15', price:32000 },
+];
+
+let products = DEFAULT_PRODUCTS.map(p => ({...p}));
+let nextId = DEFAULT_PRODUCTS.length + 1;
+let activeFilter = 'Semua';
+
+// ===== PERSISTENT STORAGE — window.storage (Claude Artifacts) atau localStorage (browser biasa) =====
+const hasCloudStorage = (typeof window !== 'undefined') && !!window.storage;
+const hasLocalStorage = (() => { try { localStorage.setItem('_t','1'); localStorage.removeItem('_t'); return true; } catch(e) { return false; } })();
+const STORAGE_KEYS = { products: 'homestock_products', nextId: 'homestock_next_id' };
+
+async function _storageSet(key, val) {
+  if (hasCloudStorage) { try { await window.storage.set(key, val, false); } catch(e) {} }
+  else if (hasLocalStorage) { try { localStorage.setItem(key, val); } catch(e) {} }
+}
+async function _storageGet(key) {
+  if (hasCloudStorage) { try { const r = await window.storage.get(key, false); return (r && r.value) ? r.value : null; } catch(e) { return null; } }
+  else if (hasLocalStorage) { try { return localStorage.getItem(key); } catch(e) { return null; } }
+  return null;
+}
+
+async function persistProducts() {
+  await _storageSet(STORAGE_KEYS.products, JSON.stringify(products));
+  await _storageSet(STORAGE_KEYS.nextId, String(nextId));
+}
+
+
+async function loadPersistedData() {
+  try {
+    const r = await _storageGet(STORAGE_KEYS.products);
+    if (r) products = JSON.parse(r);
+  } catch (e) { /* pakai default */ }
+  try {
+    const r2 = await _storageGet(STORAGE_KEYS.nextId);
+    if (r2) nextId = parseInt(r2) || nextId;
+  } catch (e) {}
+  // Pastikan nextId selalu lebih besar dari id tertinggi yang ada
+  const maxId = products.reduce((m, p) => Math.max(m, p.id || 0), 0);
+  if (nextId <= maxId) nextId = maxId + 1;
+}
+
+async function resetToDemoData() {
+  if (!confirm('Kembalikan semua data ke kondisi demo awal? Perubahan yang sudah Anda buat akan hilang.')) return;
+  products = DEFAULT_PRODUCTS.map(p => ({...p}));
+  nextId = DEFAULT_PRODUCTS.length + 1;
+  await persistProducts();
+  renderInventory();
+  syncAll();
+  showToast('↺ Data dikembalikan ke kondisi awal.');
+}
+
+function updateHomeStats() {
+  const invCountEl = document.getElementById('home-inv-count');
+  if (invCountEl) invCountEl.textContent = products.length;
+
+  const riskCount = products.filter(p => {
+    const diff = dayDiff(p.exp);
+    return diff <= 7;
+  }).length;
+
+  const expWidgetEl = document.getElementById('home-exp-widget-num');
+  if (expWidgetEl) expWidgetEl.textContent = riskCount;
+  const expChipEl = document.getElementById('home-exp-chip-sub');
+  if (expChipEl) expChipEl.textContent = riskCount + ' item berisiko';
+
+  // Indikator titik warna di chip "Status Stok" — ikut kondisi sebenarnya
+  const riskDot = document.getElementById('home-risk-dot');
+  if (riskDot) {
+    riskDot.style.background = riskCount > 0 ? 'rgba(255,140,60,0.95)' : 'rgba(80,220,150,0.9)';
+    riskDot.style.boxShadow = riskCount > 0 ? '0 0 6px rgba(255,140,60,0.8)' : '0 0 6px rgba(80,220,150,0.8)';
+  }
+
+  // Notif dot di dock Inventory — hanya tampil jika ada item kritis
+  const criticalCount = products.filter(p => getStatus(p) === 'critical').length;
+  const invNotifDot = document.querySelector('#dock-inventory .notif-dot');
+  if (invNotifDot) invNotifDot.style.display = criticalCount > 0 ? 'block' : 'none';
+
+  // Home Health Score & status message — persentase produk yang sehat
+  const healthyCount = products.filter(p => getStatus(p) === 'healthy').length;
+  const score = products.length ? Math.round((healthyCount / products.length) * 100) : 100;
+  const scoreEl = document.getElementById('home-health-score');
+  if (scoreEl) scoreEl.textContent = score;
+  const statusMsgEl = document.getElementById('home-status-msg');
+  if (statusMsgEl) {
+    statusMsgEl.textContent = criticalCount > 0
+      ? `${criticalCount} item butuh perhatian segera`
+      : (riskCount > 0 ? `${riskCount} item akan expired minggu ini` : 'Rumah Anda terpantau baik ✅');
+  }
+}
+
+// ===== SHOPPING LIST — REAL-TIME DARI INVENTORY =====
+// Harga estimasi per satuan (unit price map sederhana)
+const unitPriceMap = {
+  'kotak':15000, 'botol':18000, 'liter':18000, 'kg':14000,
+  'pcs':12000, 'butir':2500, 'sachet':3000, 'roll':8000,
+  'bungkus':4000, 'pack':20000, 'buah':5000, 'lembar':500,
+};
+function getUnitPrice(unit) {
+  const key = (unit||'').toLowerCase();
+  return unitPriceMap[key] || 10000;
+}
+
+function getShoppingReason(p) {
+  const diff = dayDiff(p.exp);
+  if (diff < 0) return `Sudah kadaluwarsa · Perlu diganti`;
+  if (diff === 0) return `Kadaluwarsa hari ini · Segera beli`;
+  if (diff <= 3) return `Exp ${diff} hari lagi · Stok kritis`;
+  if (diff <= 7) return `Exp ${diff} hari lagi · Segera beli`;
+  if (p.qty <= 1) return `Stok tinggal ${p.qty} ${p.unit} · Kritis`;
+  if (p.qty <= 3) return `Stok ${p.qty} ${p.unit} · Mulai menipis`;
+  return `Stok ${p.qty} ${p.unit} · Pantau stok`;
+}
+
+function getSuggestedQty(p) {
+  // Sarankan beli 2-3x dari stok saat ini, minimal 1
+  if (p.qty <= 1) return Math.max(2, Math.ceil(p.qty * 3));
+  if (p.qty <= 3) return Math.max(2, Math.ceil(p.qty * 2));
+  return Math.max(1, Math.ceil(p.qty * 1.5));
+}
+
+function renderShopping() {
+  const list = document.getElementById('shopping-list-render');
+  const titleEl = document.getElementById('shop-section-title');
+  const totalEl = document.getElementById('shop-total-val');
+  if (!list) return;
+
+  // Tentukan produk yang perlu dibeli: critical atau low stock
+  const needBuy = products.filter(p => {
+    const diff = dayDiff(p.exp);
+    return diff <= 7 || p.qty <= 3; // expired soon OR low stock
+  }).sort((a, b) => {
+    // Urutkan: critical dulu
+    const stA = getStatus(a), stB = getStatus(b);
+    const rank = { critical:0, low:1, healthy:2 };
+    return (rank[stA]||2) - (rank[stB]||2);
+  });
+
+  if (titleEl) titleEl.textContent = `Segera Beli (${needBuy.length} item)`;
+
+  if (needBuy.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state" style="padding:40px 0">
+        <div style="font-size:52px;margin-bottom:16px">✅</div>
+        <div class="empty-title">Stok Aman!</div>
+        <div class="empty-msg">Semua produk di inventory dalam kondisi cukup.<br>Tidak ada yang perlu dibeli saat ini.</div>
+      </div>`;
+    if (totalEl) totalEl.textContent = 'Rp 0';
+    return;
+  }
+
+  let totalEst = 0;
+  list.innerHTML = needBuy.map(p => {
+    const st = getStatus(p);
+    const reason = getShoppingReason(p);
+    const suggestQty = getSuggestedQty(p);
+    const price = getUnitPrice(p.unit) * suggestQty;
+    totalEst += price;
+    const urgencyColor = st === 'critical'
+      ? 'rgba(255,100,100,0.15)' : 'rgba(255,180,60,0.08)';
+    const urgencyBorder = st === 'critical'
+      ? 'rgba(255,100,100,0.25)' : 'rgba(255,180,60,0.2)';
+    return `<div class="shop-item" style="border-color:${urgencyBorder};background:${urgencyColor}">
+      <div class="shop-item-emoji">${p.emoji || '📦'}</div>
+      <div class="shop-item-info">
+        <div class="shop-item-name">${p.name}</div>
+        <div class="shop-item-reason">${reason}</div>
+      </div>
+      <div class="shop-item-qty">
+        <div class="shop-qty-num">${suggestQty}</div>
+        <div class="shop-qty-unit">${p.unit}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Update estimasi total
+  if (totalEl) {
+    totalEl.textContent = 'Rp ' + totalEst.toLocaleString('id-ID');
+  }
+
+  // Update widget "Perlu Dibeli" di home
+  const shopWidgetBelanja = document.querySelectorAll('.widget-num.orange');
+  shopWidgetBelanja.forEach(el => { el.textContent = needBuy.length; });
+}
+
+function getStatus(p) {
+  const diff = dayDiff(p.exp);
+  if (diff <= 7 || p.qty <= 1) return 'critical';
+  if (diff <= 30 || p.qty <= 3) return 'low';
+  return 'healthy';
+}
+function statusLabel(s) {
+  return s==='critical' ? 'Critical' : s==='low' ? 'Low Stock' : 'Healthy';
+}
+function statusColor(s) {
+  return s==='critical' ? 'rgba(255,100,100,1)' : s==='low' ? 'rgba(255,180,60,1)' : 'rgba(80,220,150,1)';
+}
+function formatExp(dateStr) {
+  if (!dateStr) return '-';
+  // Parse sebagai local time bukan UTC (hindari off-by-one date karena timezone)
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m-1, d);
+  return date.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'});
+}
+// Helper: hitung diff hari dengan tanggal lokal
+function dayDiff(dateStr) {
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const exp = new Date(y, m-1, d);
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.ceil((exp - today)/(1000*60*60*24));
+}
+
+// ===== FILTER =====
+function setFilter(el) {
+  document.querySelectorAll('#filter-chips-inv .filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  activeFilter = el.dataset.cat;
+  renderInventory();
+}
+
+// ===== RENDER INVENTORY (debounced search) =====
+let _renderTimer = null;
+function renderInventory() {
+  if (_renderTimer) cancelAnimationFrame(_renderTimer);
+  _renderTimer = requestAnimationFrame(_doRender);
+}
+function _doRender() {
+  const search = (document.getElementById('inv-search')?.value || '').toLowerCase();
+  const list = document.getElementById('product-list-render');
+  if (!list) return;
+
+  const filtered = products.filter(p => {
+    const matchCat = activeFilter === 'Semua' || p.cat === activeFilter;
+    const matchSearch = p.name.toLowerCase().includes(search) || p.cat.toLowerCase().includes(search);
+    return matchCat && matchSearch;
+  });
+
+  const sub = document.getElementById('inv-subtitle');
+  if (sub) sub.textContent = filtered.length + ' produk · Diperbarui barusan';
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty-state" style="padding:40px 0">
+      <div class="empty-home-icon">📦</div>
+      <div class="empty-title">Tidak ada produk</div>
+      <div class="empty-msg">Coba filter atau kata kunci lain, atau tambahkan produk baru.</div>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(p => {
+    const st = getStatus(p);
+    const col = statusColor(st);
+    const priceStr = p.price ? 'Rp ' + Number(p.price).toLocaleString('id-ID') : '-';
+    const emojiOrPhoto = p.photo
+      ? `<img src="${p.photo}" style="width:52px;height:52px;border-radius:16px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;">`
+      : `<div class="product-emoji">${p.emoji || '📦'}</div>`;
+    return `<div class="product-card" id="prod-${p.id}" onclick="openEditModal(${p.id})">
+      ${emojiOrPhoto}
+      <div class="product-info">
+        <div class="product-name">${p.name}</div>
+        <div class="product-meta">${p.cat} · Exp: ${formatExp(p.exp)}</div>
+        <span class="badge ${st}">${statusLabel(st)}</span>
+        <div class="product-price-tag">💰 ${priceStr}</div>
+      </div>
+      <div class="product-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <div style="text-align:right">
+          <div class="product-qty" style="color:${col}">${p.qty}</div>
+          <div class="product-unit">${p.unit}</div>
+        </div>
+        <button class="edit-btn" onclick="event.stopPropagation();openEditModal(${p.id})" title="Edit">✏️</button>
+        <button class="delete-btn" onclick="event.stopPropagation();openDeleteModal(${p.id})" title="Hapus">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== ADD PRODUCT MODAL =====
+function openAddModal() {
+  document.getElementById('add-modal').classList.add('open');
+  // Mulai selalu dari step scan
+  document.getElementById('add-step-scan').style.display = 'block';
+  document.getElementById('add-step-form').style.display = 'none';
+  document.getElementById('manual-barcode-input').value = '';
+  document.getElementById('np-barcode').value = '';
+  document.getElementById('np-name').value = '';
+  document.getElementById('np-qty').value = 1;
+  document.getElementById('np-price').value = '';
+  document.getElementById('np-weight').value = '';
+  document.getElementById('np-exp').value = '';
+  // Reset tampilan kamera
+  document.getElementById('modal-scan-mode-label').textContent = 'Tekan tombol untuk mulai kamera';
+  document.getElementById('modal-scan-label').textContent = 'Arahkan ke barcode produk';
+  document.getElementById('modal-scan-line').style.display = 'none';
+  document.getElementById('modal-cam-stop-btn').classList.remove('visible');
+  document.getElementById('modal-cam-start-btn').style.display = '';
+  document.getElementById('modal-cam-status').textContent = '';
+}
+function _closeAddModalBase(e) {
+  if (!e || e.target.id === 'add-modal') {
+    document.getElementById('add-modal').classList.remove('open');
+  }
+}
+
+// Pindah ke step form setelah barcode didapat (dari scan kamera atau input manual)
+function goToFormStep(barcode) {
+  stopModalCamera();
+  document.getElementById('np-barcode').value = barcode;
+  document.getElementById('add-step-scan').style.display = 'none';
+  document.getElementById('add-step-form').style.display = 'block';
+  setTimeout(() => { const el = document.getElementById('np-name'); if (el) el.focus(); }, 100);
+}
+
+function continueWithManualBarcode() {
+  const val = document.getElementById('manual-barcode-input').value.trim();
+  if (!val) { shakeInput('manual-barcode-input'); return; }
+  goToFormStep(val);
+}
+
+function backToScanStep() {
+  document.getElementById('add-step-form').style.display = 'none';
+  document.getElementById('add-step-scan').style.display = 'block';
+}
+
+function saveNewProduct() {
+  const name = document.getElementById('np-name').value.trim();
+  if (!name) { shakeInput('np-name'); return; }
+  const barcode = document.getElementById('np-barcode').value.trim();
+  const qty = parseInt(document.getElementById('np-qty').value) || 1;
+  const price = parseInt(document.getElementById('np-price').value) || 0;
+  const weight = document.getElementById('np-weight').value.trim() || 'pcs';
+  const exp = document.getElementById('np-exp').value || '2027-01-01';
+  const newProduct = { id: nextId++, emoji: '📦', name, cat: 'Lainnya', qty, unit: weight, exp, price };
+  if (barcode) newProduct.barcode = barcode;
+  products.push(newProduct);
+  persistProducts();
+  closeAddModal();
+  renderInventory();
+  syncAll();
+  showToast('✅ Produk berhasil ditambahkan!');
+}
+
+function shakeInput(id) {
+  const el = document.getElementById(id);
+  el.style.borderColor = 'rgba(255,90,90,0.7)';
+  el.style.animation = 'shake 0.3s ease';
+  setTimeout(() => { el.style.animation = ''; el.style.borderColor = ''; }, 400);
+}
+
+// ===== CAMERA API (untuk step scan barcode) =====
+let modalCameraStream = null;
+let modalBarcodeInterval = null;
+const hasBarcodeDetector = typeof BarcodeDetector !== 'undefined';
+
+async function startCamera(videoEl, stream) {
+  videoEl.srcObject = stream;
+  await videoEl.play().catch(() => {});
+  videoEl.classList.add('active');
+}
+
+function stopStream(stream) {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+}
+
+async function startModalCamera() {
+  const statusEl  = document.getElementById('modal-cam-status');
+  const stopBtn   = document.getElementById('modal-cam-stop-btn');
+  const startBtn  = document.getElementById('modal-cam-start-btn');
+  const modeLabel = document.getElementById('modal-scan-mode-label');
+  const scanLabel = document.getElementById('modal-scan-label');
+  const scanLine  = document.getElementById('modal-scan-line');
+  const videoEl   = document.getElementById('modal-camera-video');
+
+  if (modalCameraStream) return; // sudah berjalan
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    statusEl.textContent = '⚠️ Browser tidak mendukung akses kamera. Gunakan input manual di bawah.';
+    return;
+  }
+  try {
+    statusEl.textContent = '⏳ Meminta izin kamera…';
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    modalCameraStream = stream;
+    await startCamera(videoEl, stream);
+    if (stopBtn)  stopBtn.classList.add('visible');
+    if (startBtn) startBtn.style.display = 'none';
+    modeLabel.textContent = 'KAMERA AKTIF · AI VISION ON';
+    scanLabel.textContent = hasBarcodeDetector ? 'Arahkan ke barcode…' : 'Kamera aktif';
+    scanLine.style.display = '';
+    statusEl.textContent = hasBarcodeDetector ? '🔍 Mendeteksi barcode secara otomatis…' : '✅ Kamera aktif. BarcodeDetector tidak tersedia, gunakan input manual.';
+    if (hasBarcodeDetector) startModalBarcodeDetect();
+  } catch (err) {
+    let msg = '❌ Tidak bisa akses kamera.';
+    if (err.name === 'NotAllowedError') {
+      msg = '🔒 Izin kamera ditolak. Aktifkan izin kamera di pengaturan browser, atau gunakan input manual.';
+    } else if (err.name === 'NotFoundError') {
+      msg = '📷 Kamera tidak ditemukan di perangkat ini.';
+    } else if (err.name === 'NotSupportedError' || location.protocol === 'file:') {
+      msg = '🔒 Akses kamera memerlukan koneksi HTTPS.';
+    }
+    statusEl.textContent = msg;
+    if (startBtn) startBtn.style.display = '';
+  }
+}
+
+function stopModalCamera() {
+  stopStream(modalCameraStream);
+  modalCameraStream = null;
+  clearInterval(modalBarcodeInterval);
+  const videoEl   = document.getElementById('modal-camera-video');
+  const stopBtn   = document.getElementById('modal-cam-stop-btn');
+  const startBtn  = document.getElementById('modal-cam-start-btn');
+  const modeLabel = document.getElementById('modal-scan-mode-label');
+  const scanLabel = document.getElementById('modal-scan-label');
+  const scanLine  = document.getElementById('modal-scan-line');
+  const statusEl  = document.getElementById('modal-cam-status');
+  if (videoEl) { videoEl.srcObject = null; videoEl.classList.remove('active'); }
+  if (stopBtn)  stopBtn.classList.remove('visible');
+  if (startBtn) startBtn.style.display = '';
+  if (modeLabel) modeLabel.textContent = 'Tekan tombol untuk mulai kamera';
+  if (scanLabel) scanLabel.textContent = 'Arahkan ke barcode produk';
+  if (scanLine) scanLine.style.display = 'none';
+  if (statusEl) statusEl.textContent = '';
+}
+
+async function startModalBarcodeDetect() {
+  const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code'] });
+  const videoEl  = document.getElementById('modal-camera-video');
+  const statusEl = document.getElementById('modal-cam-status');
+  modalBarcodeInterval = setInterval(async () => {
+    if (!modalCameraStream) { clearInterval(modalBarcodeInterval); return; }
+    try {
+      const codes = await detector.detect(videoEl);
+      if (codes.length > 0) {
+        const barcode = codes[0].rawValue;
+        clearInterval(modalBarcodeInterval);
+        statusEl.textContent = `✅ Barcode terdeteksi: ${barcode}`;
+        goToFormStep(barcode);
+      }
+    } catch(e) {}
+  }, 500);
+}
+
+// ===== EDIT PRODUCT =====
+let editTargetId = null;
+function openEditModal(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  editTargetId = id;
+  document.getElementById('edit-name').value = p.name;
+  document.getElementById('edit-cat').value = p.cat;
+  document.getElementById('edit-emoji').value = p.emoji || '';
+  document.getElementById('edit-qty').value = p.qty;
+  document.getElementById('edit-unit').value = p.unit;
+  document.getElementById('edit-exp').value = p.exp || '';
+  document.getElementById('edit-price').value = p.price || '';
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeEditModal(e) {
+  // Jika dipanggil tanpa event (tombol Batal), atau klik di overlay langsung → tutup
+  if (!e || !e.target || e.target.id === 'edit-modal') {
+    document.getElementById('edit-modal').classList.remove('open');
+    editTargetId = null;
+  }
+}
+function saveEditProduct() {
+  if (editTargetId === null) return;
+  const p = products.find(x => x.id === editTargetId);
+  if (!p) return;
+  const name = document.getElementById('edit-name').value.trim();
+  if (!name) { shakeInput('edit-name'); return; }
+  p.name   = name;
+  p.cat    = document.getElementById('edit-cat').value;
+  p.emoji  = document.getElementById('edit-emoji').value.trim() || '📦';
+  p.qty    = parseInt(document.getElementById('edit-qty').value) || 0;
+  p.unit   = document.getElementById('edit-unit').value.trim() || 'pcs';
+  p.exp    = document.getElementById('edit-exp').value || p.exp;
+  p.price  = parseInt(document.getElementById('edit-price').value) || 0;
+  persistProducts();
+  document.getElementById('edit-modal').classList.remove('open');
+  editTargetId = null;
+  renderInventory();
+  syncAll();
+  showToast('✏️ Produk berhasil diperbarui!');
+}
+
+// ===== DELETE =====
+let deleteTargetId = null;
+function openDeleteModal(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  deleteTargetId = id;
+  document.getElementById('del-emoji').textContent = p.emoji || '📦';
+  document.getElementById('del-product-name').textContent = p.name;
+  document.getElementById('delete-modal').classList.add('open');
+  document.getElementById('del-confirm-btn').onclick = () => confirmDelete();
+}
+function closeDeleteModal(e) {
+  if (!e || e.target.id === 'delete-modal') {
+    document.getElementById('delete-modal').classList.remove('open');
+    deleteTargetId = null;
+  }
+}
+function confirmDelete() {
+  if (deleteTargetId === null) return;
+  const card = document.getElementById('prod-' + deleteTargetId);
+  if (card) {
+    card.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+    card.style.opacity = '0';
+    card.style.transform = 'translateX(30px) scale(0.95)';
+  }
+  setTimeout(() => {
+    products = products.filter(p => p.id !== deleteTargetId);
+    persistProducts();
+    deleteTargetId = null;
+    document.getElementById('delete-modal').classList.remove('open');
+    renderInventory();
+    syncAll();
+    showToast('🗑️ Produk dihapus dari inventory.');
+  }, 280);
+}
+
+// ===== TOAST =====
+function showToast(msg) {
+  let t = document.getElementById('toast-notif');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast-notif';
+    t.style.cssText = 'position:fixed;bottom:110px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(8,16,50,0.96);border:1px solid rgba(255,255,255,0.15);color:#fff;padding:12px 22px;border-radius:100px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:opacity 0.25s ease,transform 0.25s ease;white-space:nowrap;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  requestAnimationFrame(() => { t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)'; });
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(10px)'; }, 2800);
+}
+
+// ===== HOME AI CHAT (REAL-TIME dari data products) =====
+
+function getAIContext() {
+  const critical = products.filter(p => {
+    const diff = dayDiff(p.exp);
+    return diff <= 7 || p.qty <= 1;
+  });
+  const low = products.filter(p => {
+    const diff = dayDiff(p.exp);
+    return (diff > 7 && diff <= 30) || (p.qty > 1 && p.qty <= 3);
+  });
+  const expiring = products.filter(p => {
+    const diff = dayDiff(p.exp);
+    return diff >= 0 && diff <= 7;
+  }).sort((a,b) => dayDiff(a.exp) - dayDiff(b.exp));
+  const expired = products.filter(p => dayDiff(p.exp) < 0);
+  return { critical, low, expiring, expired };
+}
+
+function generateAIReply(q) {
+  const key = q.toLowerCase().replace(/[?!.,]/g,'').trim();
+  const { critical, low, expiring, expired } = getAIContext();
+
+  // --- hampir habis / stok kritis ---
+  if (key.match(/hampir habis|stok kritis|menipis|sedikit|kritis/)) {
+    if (critical.length === 0 && low.length === 0)
+      return `✅ Semua stok dalam kondisi aman saat ini. Tidak ada barang yang hampir habis dari **${products.length} produk** di inventory Anda.`;
+    let reply = '';
+    if (critical.length > 0) {
+      reply += `🚨 **${critical.length} item kritis** yang perlu segera dibeli:\n\n`;
+      critical.forEach(p => {
+        const diff = dayDiff(p.exp);
+        const reason = diff <= 7 ? `exp ${diff < 0 ? 'sudah lewat' : diff + ' hari lagi'}` : `sisa ${p.qty} ${p.unit}`;
+        reply += `${p.emoji} **${p.name}** — ${reason}\n`;
+      });
+    }
+    if (low.length > 0) {
+      reply += `\n⚠️ **${low.length} item** mulai menipis:\n\n`;
+      low.forEach(p => {
+        reply += `${p.emoji} **${p.name}** — ${p.qty} ${p.unit} tersisa\n`;
+      });
+    }
+    return reply.trim();
+  }
+
+  // --- expired / kadaluarsa ---
+  if (key.match(/expired|kadaluarsa|kadaluwarsa|exp|basi/)) {
+    let reply = '';
+    if (expired.length > 0) {
+      reply += `⛔ **${expired.length} item sudah kadaluarsa:**\n\n`;
+      expired.forEach(p => {
+        const diff = dayDiff(p.exp);
+        reply += `${p.emoji} **${p.name}** — ${Math.abs(diff)} hari yang lalu\n`;
+      });
+      reply += '\n';
+    }
+    if (expiring.length > 0) {
+      reply += `⚠️ **${expiring.length} item akan expired dalam 7 hari:**\n\n`;
+      expiring.forEach(p => {
+        const diff = dayDiff(p.exp);
+        reply += `${p.emoji} **${p.name}** — ${diff === 0 ? 'hari ini!' : diff + ' hari lagi'} (${formatExp(p.exp)})\n`;
+      });
+    }
+    if (expired.length === 0 && expiring.length === 0)
+      reply = `✅ Tidak ada produk yang expired atau akan segera expired dalam 7 hari ke depan dari **${products.length} produk** Anda.`;
+    return reply.trim();
+  }
+
+  // --- saran belanja ---
+  if (key.match(/saran belanja|belanja|beli|shopping|perlu beli/)) {
+    const needBuy = [...critical, ...low].filter((p,i,a) => a.findIndex(x=>x.id===p.id)===i);
+    if (needBuy.length === 0)
+      return `✅ Stok Anda aman semua! Tidak ada yang perlu dibeli saat ini. Pantau terus di tab **Belanja** untuk update real-time.`;
+    let total = 0;
+    let reply = `🛒 **Saran belanja minggu ini (${needBuy.length} item):**\n\n`;
+    needBuy.forEach(p => {
+      const suggestQty = p.qty <= 1 ? 3 : p.qty <= 3 ? 2 : 2;
+      const price = (unitPriceMap[p.unit?.toLowerCase()] || 10000) * suggestQty;
+      total += price;
+      reply += `${p.emoji} **${p.name}** — beli ${suggestQty} ${p.unit}\n`;
+    });
+    reply += `\n💰 Estimasi total: **Rp ${total.toLocaleString('id-ID')}**`;
+    return reply;
+  }
+
+  // --- ringkasan stok ---
+  if (key.match(/ringkasan|summary|stok|total|semua|kondisi|status/)) {
+    const cats = {};
+    products.forEach(p => { cats[p.cat] = (cats[p.cat]||0)+1; });
+    const catStr = Object.entries(cats).map(([k,v])=>`${k} (${v})`).join(', ');
+    const critCount = critical.length;
+    const expCount = expiring.length + expired.length;
+    return `📦 **Ringkasan Inventory Real-Time:**\n\n` +
+      `• Total produk: **${products.length} item**\n` +
+      `• Kategori: ${catStr}\n` +
+      `• Stok kritis: **${critCount} item**\n` +
+      `• Expired/akan expired: **${expCount} item**\n` +
+      `• Stok aman: **${products.length - critCount} item**\n\n` +
+      (critCount > 0 ? `⚡ Perhatikan **${critCount} item kritis** yang perlu segera ditangani.` : `✅ Kondisi inventory Anda baik!`);
+  }
+
+  // --- fallback dinamis ---
+  const critCount = critical.length;
+  const expCount = expiring.length + expired.length;
+  if (critCount > 0 || expCount > 0) {
+    return `Saya memantau **${products.length} produk** di inventory Anda. ` +
+      (critCount > 0 ? `Ada **${critCount} item kritis** yang perlu perhatian. ` : '') +
+      (expCount > 0 ? `Ada **${expCount} item** yang expired/akan expired. ` : '') +
+      `\n\nCoba tanya: "Barang hampir habis?", "Yang akan expired?", atau "Saran belanja?"`;
+  }
+  return `Saya memantau **${products.length} produk** di inventory Anda. Semua dalam kondisi baik! ✅\n\nAda yang ingin Anda tanyakan tentang stok atau belanja?`;
+}
+
+function updateHomeAIWelcome() {
+  const el = document.getElementById('home-ai-count');
+  if (el) el.textContent = products.length + ' produk';
+}
+
+function askHomeAI(el) {
+  const q = el.textContent;
+  appendHomeMessage(q, 'user');
+  showHomeThinking();
+  setTimeout(() => {
+    removeHomeThinking();
+    appendHomeMessage(generateAIReply(q), 'ai');
+  }, 700);
+}
+
+function sendHomeChat() {
+  const input = document.getElementById('home-chat-input');
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  appendHomeMessage(q, 'user');
+  showHomeThinking();
+  setTimeout(() => {
+    removeHomeThinking();
+    appendHomeMessage(generateAIReply(q), 'ai');
+  }, 800);
+}
+
+let homeThinkingEl = null;
+function showHomeThinking() {
+  const chat = document.getElementById('home-chat-area');
+  homeThinkingEl = document.createElement('div');
+  homeThinkingEl.className = 'ai-thinking';
+  homeThinkingEl.innerHTML = '<div class="think-dot"></div><div class="think-dot"></div><div class="think-dot"></div><span style="color:rgba(255,255,255,0.25);font-size:11px;margin-left:4px">AI sedang berpikir…</span>';
+  chat.appendChild(homeThinkingEl);
+  chat.scrollTop = chat.scrollHeight;
+}
+function removeHomeThinking() { if (homeThinkingEl) { homeThinkingEl.remove(); homeThinkingEl = null; } }
+function appendHomeMessage(text, role) {
+  const chat = document.getElementById('home-chat-area');
+  const div = document.createElement('div');
+  div.className = role === 'ai' ? 'ai-msg' : 'user-msg';
+  div.innerHTML = text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function scrollToAI() {
+  setTimeout(() => {
+    const el = document.getElementById('home-chat-area');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+function showScreen(name) {
+  _showScreenBase(name);
+}
+function closeAddModal(e) {
+  if (!e || (e.target && e.target.id === 'add-modal')) stopModalCamera();
+  _closeAddModalBase(e);
+}
+
+// Init — muat data tersimpan dulu (jika ada), baru render tampilan
+async function initApp() {
+  await loadPersistedData();
+  renderInventory();
+  syncAll();
+}
+initApp();
+
+// PERF: Pause animations saat layar tidak aktif (hemat baterai)
+document.addEventListener('visibilitychange', () => {
+  const body = document.body;
+  if (document.hidden) {
+    body.style.setProperty('--anim-play', 'paused');
+    document.querySelectorAll('.ambient-orb, .orb-liquid, .ai-orb, .assistant-orb').forEach(el => {
+      el.style.animationPlayState = 'paused';
+    });
+  } else {
+    document.querySelectorAll('.ambient-orb, .orb-liquid, .ai-orb, .assistant-orb').forEach(el => {
+      el.style.animationPlayState = 'running';
+    });
+  }
+});
+
+// PERF: Passive scroll untuk smooth scrolling
+document.addEventListener('touchstart', () => {}, { passive: true });
+document.addEventListener('touchmove', () => {}, { passive: true });
+</script>
+</body>
+</html>
